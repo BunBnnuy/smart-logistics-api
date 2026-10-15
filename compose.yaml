@@ -1,0 +1,39 @@
+name: smart-logistics
+
+services:
+  api:
+    build:
+      context: .
+      target: runtime
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      MONGO_URI: mongodb://mongo:27017/smart-logistics
+    ports:
+      - '127.0.0.1:${PORT:-3000}:3000'
+    depends_on:
+      mongo:
+        condition: service_healthy
+    stop_grace_period: 30s
+
+  mongo:
+    image: mongo:7.0
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - 'quit(db.adminCommand({ ping: 1 }).ok === 1 ? 0 : 1)'
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  mongo-data:

@@ -10,6 +10,60 @@ npm run start:dev      # http://localhost:3000
 Interactive docs (Swagger UI): **http://localhost:3000/docs**
 Raw OpenAPI JSON: **http://localhost:3000/docs-json**
 
+## Docker and Compose
+
+Requires Docker Engine with the Compose plugin, or Docker Desktop configured for
+Linux containers. Node.js and MongoDB do not need to be installed on the host.
+
+From the repository root:
+
+```bash
+docker compose up --build -d --wait
+docker compose ps
+```
+
+Open **http://localhost:3000/docs** and use the walkthrough below. Compose starts
+MongoDB first, waits for its ping health check, then starts the API. The API image
+uses Node.js 24, compiles TypeScript in a separate build stage, installs only
+production dependencies in the final image, and runs as the unprivileged `node`
+user. Compiled routing workers are included in `dist`.
+
+Only the API is published, on the host's loopback interface. MongoDB is reachable
+by the API at `mongo:27017` on the Compose network and is not published to the
+host. This is a local evaluation setup; MongoDB authentication and remote
+exposure are not configured.
+
+The API always listens on port 3000 inside Compose. To change the host port, set
+`PORT` in a root `.env` file, for example `PORT=3001`, and open
+`http://localhost:3001/docs`. Compose sets its own internal `MONGO_URI`; a host
+connection string from `.env` is not passed to the container. Environment files
+are excluded from the image build context.
+
+The API container health check verifies that `/docs-json` responds successfully.
+It checks HTTP availability, not ongoing MongoDB connectivity. Nest shutdown
+hooks close MongoDB connections and stop the routing worker on container stop.
+
+```bash
+docker compose logs -f api
+docker compose down
+```
+
+`down` keeps the named MongoDB volume, so uploaded networks survive recreating
+the containers. Route jobs remain in API memory and are lost when it restarts.
+To also erase the stored networks, use `docker compose down --volumes`.
+
+To run only the API with its in-memory network repository:
+
+```bash
+docker build -t smart-logistics-api .
+docker run --rm --init -p 127.0.0.1:3000:3000 smart-logistics-api
+```
+
+No `MONGO_URI` is set in this standalone command, so it keeps the last five
+networks in memory.
+
+## Tests
+
 Run the test suites:
 
 ```bash
